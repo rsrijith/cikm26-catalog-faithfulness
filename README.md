@@ -98,6 +98,14 @@ from its bias elsewhere, but the test rests on only seven items from that vendor
 annotator marked out-of-catalog, so it is weak rather than a clean acquittal. It is also
 pooled across catalogs in a setting where judge error is known to be catalog-dependent.
 
+About 1% of items go unanswered per pass, spread over roughly one batch in twenty, because
+a reply occasionally omits an item. Under the code that produced these files an unanswered
+item was written as a non-match, so on the order of 190 of the 18,833 verdicts here were
+never actually judged and are recorded as out-of-catalog. `code/verify_verdicts.py`
+measures the effect: re-judging 500 out-of-catalog records against 500 in-catalog controls
+puts the excess flip rate at +2.0 pp (95% CI -1.0 to +5.0, p = 0.19). The current code
+records a `judged` flag so the distinction is preserved going forward.
+
 Judge error is not uniform across catalogs: 0.000 on MovieLens, 0.125 on Yelp, 0.231 on
 Amazon. That gradient runs in the same direction as the paper's headline finding, so the
 per-catalog rates should be read as the intervals the paper reports rather than as points.

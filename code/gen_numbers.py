@@ -203,6 +203,33 @@ def main():
     else:
         missing.append("instrument_table.json")
 
+    # ---- verdict-answering audit (code/verify_verdicts.py) ---------------------
+    p = OUT / "verify_verdicts.json"
+    if p.exists():
+        V = json.load(p.open())
+        src = "verify_verdicts.json"
+        import math
+        B, C = V["rates"]["B"], V["rates"]["C"]
+        nB, nC = V["n"]["B"], V["n"]["C"]
+        d = B - C
+        hw = 1.96 * math.sqrt(B * (1 - B) / nB + C * (1 - C) / nC)
+        pooled = (B * nB + C * nC) / (nB + nC)
+        se = math.sqrt(pooled * (1 - pooled) * (1 / nB + 1 / nC))
+        z = d / se if se else 0.0
+        emit("verifyN", V["judged_total"], src, "{:,d}")
+        emit("verifyUnansweredPct", V["unanswered_pct"], src, "{:.1f}")
+        emit("verifyPartialBatches", V["partial_batches"], src, "{:d}")
+        emit("verifyBatches", V["total_batches"], src, "{:d}")
+        emit("verifyAffected", V["affected_estimate"], src, "{:d}")
+        emit("verifySampleOut", nB, src, "{:d}")
+        emit("verifySampleIn", nC, src, "{:d}")
+        emit("verifyExcess", d * 100, src, "{:+.1f}")
+        emit("verifyExcessLo", (d - hw) * 100, src, "{:+.1f}")
+        emit("verifyExcessHi", (d + hw) * 100, src, "{:+.1f}")
+        emit("verifyP", math.erfc(abs(z) / math.sqrt(2)), src, "{:.2f}")
+    else:
+        missing.append("verify_verdicts.json")
+
     # ---- D1 table inputs ------------------------------------------------------
     p = OUT / "d1_tables.json"
     if p.exists():
