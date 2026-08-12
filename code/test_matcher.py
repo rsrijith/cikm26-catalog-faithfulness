@@ -5,6 +5,8 @@ matcher can silently reintroduce a failure that has already cost us a rewrite.
 
 Run: python code/test_matcher.py
 """
+import pathlib
+import re
 import sys
 sys.path.insert(0, "code")
 import math
@@ -84,6 +86,18 @@ check(short_title_conflict("moon pizza", "blue moon pizza") is True,
       "short guard must apply when the shorter side is short")
 check(short_title_conflict("a b c d e", "a b c d f") is False,
       "short guard must not apply to long titles")
+
+# Retrieval depth. Three defects came from one consumer quietly using a different one:
+# the published Table 1 scored a 20-candidate judge while deployment used 8, the blind
+# relabel drew 4, and the first verification re-judge used 20 and reported a 19% flip
+# rate that was measuring depth rather than fabrication.
+from llm_matcher import DEPLOY_TOPN
+check(DEPLOY_TOPN == 8, "deployed candidate depth must be 8")
+for _f in ("llm_match_all.py", "build_round2.py", "verify_verdicts.py"):
+    _src = (pathlib.Path("code") / _f).read_text()
+    check("DEPLOY_TOPN" in _src, f"{_f} must slice to the shared depth constant")
+    check("8" not in re.findall(r"\[:\s*(\d+)\s*\]", _src),
+          f"{_f} still slices to a hard-coded 8; use DEPLOY_TOPN")
 
 if FAIL:
     print(f"FAILED {len(FAIL)}:")

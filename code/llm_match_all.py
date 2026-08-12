@@ -18,7 +18,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 sys.path.insert(0, "code")
 import pandas as pd
-from llm_matcher import SYSTEM, build_user, parse_reply, BATCH
+from llm_matcher import SYSTEM, build_user, parse_reply, DEPLOY_TOPN, BATCH
 from retrieval import get_index
 
 OUT = Path("data/analysis_corrected")
@@ -52,7 +52,7 @@ def run_cell(client, dataset, llm, idx):
         items = []
         for t in chunk:
             cids = idx.retrieve(t, k=12)
-            items.append((t, [idx.titles[i] for i in cids][:8], cids[:8]))
+            items.append((t, [idx.titles[i] for i in cids][:DEPLOY_TOPN], cids[:DEPLOY_TOPN]))
         payload = [(t, c) for t, c, _ in items]
         ncands = {i + 1: len(c) for i, (_, c) in enumerate(payload)}
         ans = {}

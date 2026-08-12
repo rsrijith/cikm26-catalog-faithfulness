@@ -22,6 +22,10 @@ from retrieval import get_index
 
 OUT = Path("data/analysis_corrected")
 DEFAULT_MODEL = "claude-sonnet-4-6"   # must match the model the paper names
+# The number of candidates the judge sees. Deployment, the labeling form, the
+# validation and any re-judge must all use this one value. Three separate defects in
+# this project came from one of them quietly using a different depth.
+DEPLOY_TOPN = 8
 BATCH = 10
 
 SYSTEM = """You decide whether a recommended item title refers to the same real-world \
@@ -76,7 +80,7 @@ def parse_reply(text, n_items, n_cands):
     return out
 
 
-def judge(rows, model=DEFAULT_MODEL, k=12, verbose=True):
+def judge(rows, model=DEFAULT_MODEL, k=12, verbose=True, topn=None):
     """rows: list of dicts with 'catalog' and 'generated_title'.
     Returns the same list with 'llm_match_title' and 'llm_in_catalog' added."""
     import anthropic
@@ -90,6 +94,11 @@ def judge(rows, model=DEFAULT_MODEL, k=12, verbose=True):
     for r in rows:
         idx = idxs[r["catalog"]]
         cids = idx.retrieve(r["generated_title"], k=k)
+        # retrieve() returns up to 2k. Deployment slices to 8. Any caller that wants to
+        # reproduce a deployment verdict must slice identically, or it is judging a
+        # different information set and its answer is not comparable.
+        if topn is not None:
+            cids = cids[:topn]
         r["_cands"] = [idx.titles[i] for i in cids]
         r["_cand_ids"] = [idx.ids[i] for i in cids]
         r["_cand_quart"] = [idx.quart[i] for i in cids]
@@ -115,7 +124,13 @@ def judge(rows, model=DEFAULT_MODEL, k=12, verbose=True):
                     ans = {}
                 else:
                     time.sleep(2 ** attempt)
+        if len(ans) != len(chunk):
+            print(f"  PARTIAL batch {start}: {len(ans)}/{len(chunk)} answered", flush=True)
         for i, r in enumerate(chunk, 1):
+            # judged=False is missing data, NOT a non-match. Collapsing the two is how a
+            # dead API key silently produced 500 'hallucinations' and a verification
+            # script then reported 'no evidence of fabricated verdicts' from them.
+            r["judged"] = i in ans
             v = ans.get(i, 0)
             r["llm_in_catalog"] = bool(v)
             r["llm_match_title"] = r["_cands"][v - 1] if v else ""
