@@ -80,6 +80,19 @@ def main():
             s = M[M.dataset == d]
             emit(f"grndLo{ROMAN[d]}", s.grounded.min() * 100, "llm_metrics.parquet")
             emit(f"grndHi{ROMAN[d]}", s.grounded.max() * 100, "llm_metrics.parquet")
+        # ECE collapses to the absolute mean gap only where confidence is concentrated
+        # in bins of one sign. Count it rather than asserting "all twelve".
+        eq = (np.abs(M.ece - np.abs(M.gap)) < 5e-4)
+        emit("eceEqCells", int(eq.sum()), "llm_metrics.parquet", "{:d}")
+        # Whose property is the confidence level: the model's or the catalog's?
+        bm = M.groupby("llm").conf.mean() * 100
+        bc = M.groupby("dataset").conf.mean() * 100
+        emit("varBetweenModel", bm.var(ddof=0), "llm_metrics.parquet")
+        emit("varBetweenCatalog", bc.var(ddof=0), "llm_metrics.parquet")
+        for l, v in bm.items():
+            emit(f"confModel{LROMAN[l]}", v, "llm_metrics.parquet")
+        emit("grndSwing", (M.grounded.max() - M.grounded.min()) * 100,
+             "llm_metrics.parquet", "{:.0f}")
     else:
         missing.append("llm_metrics.parquet")
 
@@ -114,6 +127,7 @@ def main():
         emit("nLabels", I["n_labels"], src, "{:d}")
         emit("nDrawn", I["n_drawn"], src, "{:d}")
         emit("nMLOut", I["strata"]["movielens"]["OUT"], src, "{:d}")
+        emit("nAmzVal", I["per_catalog"]["amazon"]["n"], src, "{:d}")
         emit("nLeak", I["leakage"]["n"], src, "{:d}")
         emit("foneLLMexLeak", I["leakage"]["f1_excl"], src, "{:.3f}")
         emit("mcnemarP", I["mcnemar_llm8_vs_tokenset"], src, "{:.2f}")
@@ -149,11 +163,6 @@ def main():
         emit("blindBiasLLM", b["llm8"]["bias"], src, "{:+.3f}")
         emit("blindFoneTokenSet", b["tokenset"]["f1"], src, "{:.3f}")
         emit("blindBiasTokenSet", b["tokenset"]["bias"], src, "{:+.3f}")
-
-        r = I["retrieval"]
-        emit("retrFN", r["n_surface_fn"], src, "{:d}")
-        emit("retrIDF", r["rescued_by_idf"], src, "{:d}")
-        emit("retrFuzzy", r["rescued_by_fuzzy"], src, "{:d}")
 
         # in-catalog rate under the published full-catalog scan, against the annotator
         for d in DATASETS:
@@ -244,7 +253,11 @@ def main():
         "\n".join(f"{n:24s} = {v:>10s}   <- {s}" for n, v, s in sorted(prov)) + "\n")
     print(f"wrote {len(lines)} macros -> {DEST}")
     if missing:
-        print(f"  MISSING artifacts (macros not generated): {', '.join(missing)}")
+        # Exiting 0 here would let a caller believe an empty numbers.tex was a success,
+        # and the paper would then fail to build with no indication why. A check that
+        # cannot report failure is the defect class this whole correction is about.
+        print(f"  MISSING artifacts, macros NOT generated: {', '.join(missing)}")
+        return 1
     return 0
 
 

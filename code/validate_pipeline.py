@@ -103,10 +103,10 @@ def main():
         leak = r2.generated_title.astype(str).apply(
             lambda t: any(re.search(re.escape(e), t, re.I) for e in ex)).values
         h = r2.human_in.values
-        # The instrument to validate is the one that produced the deployment labels:
-        # 8 retrieved candidates, not the 20-candidate judge that defined the strata.
-        # Validating one and deploying the other is how the numbers were briefly wrong.
-        pred = r2.llm8_in.values.astype(bool)
+        # The instrument to validate is the one that produced the deployment labels,
+        # joined from llm_match.jsonl itself. Two earlier versions of this gate scored a
+        # re-judge instead, which is the defect it is supposed to catch.
+        pred = r2.llm_dep.values.astype(bool)
 
         def prf(mask, name):
             hh, pp = h[mask], pred[mask]

@@ -49,12 +49,14 @@ One JSON object per line:
 ### labels/human_labels_201.csv
 
 The gold standard. `generated_title` is the recommendation; `cand_1_id` … `cand_8_id` are
-the eight catalog entries the annotator was shown, retrieved by an index independent of the
-matchers under test, with `cand_1` … `cand_8` carrying their titles where we may publish
+the eight catalog entries the annotator was shown, retrieved by an index whose first block
+is independent of the matchers under test and whose second is not, with `cand_1` … `cand_8` carrying their titles where we may publish
 them; `same_item` is the candidate number the annotator picked, or 0 for none; `human_in`
 is `same_item > 0`. The remaining columns are each instrument's verdict on the same item:
-`llm8_in` (the deployed 8-candidate judge), `llm_says` (a 20-candidate judge, used only to
-define the sampling strata), `tset_in`, `tsort_in`, `surf_in`.
+`llm_dep` (the adopted instrument, joined from the deployment verdicts in `verdicts/`),
+`llm_says` (a 20-candidate judge, used only to define the sampling strata), `tset_in`,
+`tsort_in`, `surf_in`. A retired column `llm8_in` records a separate re-judge of these rows
+that disagreed with deployment on 24 of 201; it is kept for the record and is not scored.
 
 Four of the 205 drawn items were left undecided and dropped, two of them from the MovieLens
 out-of-catalog stratum, which is why that stratum holds only three rows and its interval in
@@ -64,7 +66,12 @@ the paper is wide.
 
 `code/instrument_table.py` scores every instrument against the labels and writes
 `instrument_table.json`; `code/gen_numbers.py` turns that into the LaTeX macros the
-manuscript quotes, so no number in the paper is typed by hand. `code/test_matcher.py` is a
+manuscript quotes, so no number in the paper is typed by hand. What is here regenerates the
+instrument table and the §3.3 statistics. The per-cell calibration tables and the reliability
+figure derive from recommendation-level files that are not in this release, so those are not
+independently rebuildable from it. The scripts expect `round2_scored.csv` and
+`llm_pool_judged.csv`; those are `labels/human_labels_201.csv` and
+`labels/sampling_frame_1200.csv` here. `code/test_matcher.py` is a
 regression suite with one case per matcher bug found during this work, and
 `code/validate_pipeline.py` is the pre-publication gate: label coverage, matched titles
 resolving to real catalog entries, no conflation of "no match" with "unusable input",
@@ -79,18 +86,27 @@ files here are the ones the paper's numbers come from.
 
 The human labels come from a single annotator, with no second-rater agreement statistic.
 The annotator chose among eight retrieved candidates, so the gold standard inherits that
-retrieval's ceiling; for the 43 items the surface-form rules miss and the annotator
-confirms, the independent half of the retriever surfaced the true entry in all 43 cases,
-which is the evidence we have that the ceiling is not binding in practice.
+retrieval's ceiling, and we do not have a clean measurement of where that ceiling sits. An
+earlier version of this README claimed the independent half of the retriever rescued 43 of
+43 surface-matcher misses. That check was a tautology: the candidates it searched were the
+same list it drew the answer from, so it could not have returned any other number. It is
+withdrawn.
 
 The judge shares a vendor with one of the four audited recommenders. It never sees which
-model produced a title. Its net bias on that vendor's output is +0.000 against −0.026 on
-the other three (permutation p = 0.83), on only seven items from that vendor the annotator
-marked out-of-catalog, so this is a weak test rather than a clean acquittal.
+model produced a title, and its net bias on that vendor's output is not distinguishable
+from its bias elsewhere, but the test rests on only seven items from that vendor the
+annotator marked out-of-catalog, so it is weak rather than a clean acquittal. It is also
+pooled across catalogs in a setting where judge error is known to be catalog-dependent.
 
 Judge error is not uniform across catalogs: 0.000 on MovieLens, 0.125 on Yelp, 0.231 on
 Amazon. That gradient runs in the same direction as the paper's headline finding, so the
 per-catalog rates should be read as the intervals the paper reports rather than as points.
+
+`human_labels_blind_60.csv` is a partial control, not a clean one. It removed the judge's
+verdict from the labeling form, but it also drew its candidates at a different depth, so
+candidates 5 through 8 differ from the round-2 form on 58 of 59 rows. Hint removal and
+candidate substitution are confounded there. It supports only the weak claim that no large
+anchoring effect is visible at this sample size.
 
 ## License
 

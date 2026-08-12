@@ -14,11 +14,12 @@ Everything is derived from two committed artifacts:
   round2_scored.csv     201 human-labeled items with every instrument's verdict
   llm_pool_judged.csv   the 1,200-item frame the labeled sample was drawn from
 
-Two verdict columns for the LLM judge are kept apart on purpose. `llm_says` is the
-20-candidate judge that defined the sampling strata; `llm8_in` is the 8-candidate judge
-that produced all 35,927 deployment labels. Validating one and deploying the other is the
-defect this file exists to keep out of the paper, so the adopted-instrument row is always
-llm8 and the llm20 row is reported only as a disclosure.
+The adopted-instrument column is `llm_dep`, joined straight from the deployment verdict
+files, because those verdicts produced every other number in the paper. `llm_says` is the
+20-candidate judge that defined the sampling strata and is reported only as a disclosure.
+A third column, `llm8_in`, was a separate re-judge of the labeled rows; it disagreed with
+deployment on 24 of 201 and is not scored. Validating one instrument and deploying another
+is the defect this file exists to keep out of the paper.
 
 Run: code/.venv/bin/python code/instrument_table.py
 """
@@ -142,33 +143,6 @@ def fullcatalog_rates(r2: pd.DataFrame) -> dict:
     return out
 
 
-def idf_half_check(r2: pd.DataFrame) -> dict:
-    """The retriever is not logic-independent of surface_match: it imports fold/sortkey
-    and its fuzzy half computes the same rapidfuzz ratio. What matters empirically is
-    whether the independent half rescues the dependent half's misses. Measure it."""
-    from retrieval import get_index
-    idxs = {d: get_index(d) for d in r2.catalog.unique()}
-    fn_rows = r2[(~r2.surf_in.astype(bool)) & (r2.human_in)]
-    # Two rows were relabeled IN after the fact against the full catalog, so they carry
-    # no candidate index; they are counted but cannot be attributed to a retrieval half.
-    unindexed = int((fn_rows.same_item.fillna(0).astype(int) == 0).sum())
-    fn_rows = fn_rows[fn_rows.same_item.fillna(0).astype(int) >= 1]
-    idf_hit = fuzzy_hit = 0
-    for _, r in fn_rows.iterrows():
-        idx = idxs[r.catalog]
-        pick = str(r[f"cand_{int(r.same_item)}"])
-        cids = idx.retrieve(r.generated_title, k=12)
-        titles = [idx.titles[i] for i in cids]
-        # retrieve() emits the IDF-ranked block first, then the fuzzy block
-        n_idf = min(12, len(titles))
-        if pick in titles[:n_idf]:
-            idf_hit += 1
-        elif pick in titles[n_idf:]:
-            fuzzy_hit += 1
-    return {"n_surface_fn": int(len(fn_rows)), "rescued_by_idf": idf_hit,
-            "rescued_by_fuzzy": fuzzy_hit, "unindexed": unindexed}
-
-
 def cost_estimate(r2: pd.DataFrame) -> dict:
     """Approximate API cost of the deployment pass, from the actual prompt text on a
     sample of items scaled by the verdict count. An estimate, and labeled as one."""
@@ -196,7 +170,7 @@ def main():
     human = r2.human_in.values.astype(bool)
 
     preds = {
-        "llm8": r2.llm8_in.values.astype(bool),
+        "llm8": r2.llm_dep.values.astype(bool),
         "llm20": (r2.llm_says.astype(str).str.strip() == "IN").values,
         "tokenset": r2.tset_in.values.astype(bool),
         "tokensort": r2.tsort_in.values.astype(bool),
@@ -311,7 +285,6 @@ def main():
     # ---- design disclosures ------------------------------------------------
     res["strata"] = {d: {v: int(((r2.catalog == d) & (r2.llm_says == v)).sum())
                          for v in ("IN", "OUT")} for d in DATASETS}
-    res["retrieval"] = idf_half_check(r2)
     FC = fullcatalog_rates(r2)
     res["fullcatalog"] = {}
     for d in DATASETS:
