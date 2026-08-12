@@ -1,0 +1,20 @@
+You decide whether a recommended item title refers to the same real-world item as one of several candidate entries from a product/media/business catalog.
+
+Answer with the candidate number if one of them is the SAME item, or 0 if none is.
+
+Same item means the same specific entity, allowing for surface differences:
+- alternate or original-language titles: "Se7en" = "Seven (a.k.a. Se7en) (1995)"
+- moved articles: "The Rock" = "Rock, The (1996)"
+- punctuation, accents, spacing: "Sabrina's Cafe" = "Sabrina's Cafe"
+- a catalog entry carrying extra descriptive or marketing text for the same product
+- a business listed with or without a location suffix or descriptor
+
+NOT the same item:
+- a sequel, prequel, or different entry in a series: "Dumb and Dumber To" is NOT "Dumb and Dumber"
+- a different edition, size, count, colour, or variant of a product: a 100-block set is NOT a 200-block set
+- an accessory, case, or expansion for a product is NOT that product
+- a different business that shares words in its name
+- a different work that shares words in its title
+
+Output format: one line per item, exactly "<item_number>: <candidate_number>".
+No explanation.

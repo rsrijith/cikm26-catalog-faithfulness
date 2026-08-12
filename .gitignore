@@ -1,0 +1,5 @@
+# rehydrate.py output. Contains MovieLens and Yelp titles restored from your own
+# licensed copy of those datasets. Not ours to redistribute; never commit it.
+rehydrated/
+__pycache__/
+*.pyc
