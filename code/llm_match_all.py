@@ -69,12 +69,22 @@ def run_cell(client, dataset, llm, idx):
             except Exception as e:
                 if attempt == 3:
                     print(f"    FAIL: {str(e)[:70]}", flush=True)
+                    ans = {}
                 else:
                     time.sleep(2 ** attempt)
+        if len(ans) != len(payload):
+            print(f"    PARTIAL: {len(ans)}/{len(payload)} items answered in this batch; "
+                  "the rest are recorded judged:false, not as non-matches", flush=True)
         out = []
         for i, (t, cands, cids) in enumerate(items, 1):
+            # `judged` separates "the judge considered this and chose no candidate" from
+            # "no answer came back for this item". Both used to land as in_catalog:false,
+            # so a failed or partially-parsed batch was recorded as ten hallucinations
+            # and was indistinguishable from ten real non-matches. A verdict with
+            # judged:false is missing data and must not be counted as a non-match.
+            answered = i in ans
             v = ans.get(i, 0)
-            out.append({"title": t, "in_catalog": bool(v),
+            out.append({"title": t, "in_catalog": bool(v), "judged": answered,
                         "match_title": cands[v - 1] if v else "",
                         "match_id": str(idx.ids[cids[v - 1]]) if v else "",
                         "match_quartile": str(idx.quart[cids[v - 1]]) if v else ""})

@@ -253,6 +253,21 @@ def main():
         "n_claude": int(is_claude.sum()),
         "n_claude_human_out": int((~human & is_claude).sum()),
     }
+    # Pooling across catalogs is wrong in a paper that shows judge error is
+    # catalog-dependent. Report the catalog where the error concentrates.
+    am = (r2.catalog == "amazon").values
+    res["self_preference"]["amazon"] = {
+        "bias_claude": float(signed[am & is_claude].mean()),
+        "bias_other": float(signed[am & ~is_claude].mean()),
+        "n_claude": int((am & is_claude).sum()),
+    }
+    # Net bias is a difference of two error types. Report the gross mass too, so a
+    # reader can see how much cancellation is in it.
+    res["error_mass"] = {"fp": res["instruments"]["llm8"]["fp"],
+                         "fn": res["instruments"]["llm8"]["fn"]}
+    # The criterion, stated properly: worst per-catalog |net bias|.
+    res["minimax"] = {k: max(abs(res["per_catalog"][d][k]["bias"]) for d in DATASETS)
+                      for k in res["instruments"]}
 
     # Two labeled items appear as examples in the judge's system prompt. Report the
     # adopted instrument's F1 with them removed.
@@ -263,21 +278,41 @@ def main():
                       "f1_excl": scores(preds["llm8"][~leaked], human[~leaked])["f1"]}
 
     # ---- blind relabel -----------------------------------------------------
-    B = pd.read_csv(OUT / "label_blind60_labeled.csv")
-    B["human_in"] = B.same_item.fillna(0).astype(int) > 0
+    # This pass changed two things at once: it hid the judge's verdict AND drew its
+    # candidates at a different depth. Record which slots actually differ and where the
+    # disagreements land, so the paper cannot report it as an anchoring measurement.
+    B = pd.read_csv(OUT / "label_blind60_labeled.csv").drop_duplicates(
+        ["catalog", "generated_title"])
+    B["hb"] = B.same_item.fillna(0).astype(int) > 0
     key = ["catalog", "generated_title"]
-    ref = r2[key + ["human_in", "llm8_in", "tset_in", "llm_says"]].drop_duplicates(key)
-    J = B.drop_duplicates(key).merge(ref, on=key, how="inner",
-                                     suffixes=("_blind", "_hint"))
-    hb, hh = J.human_in_blind.values.astype(bool), J.human_in_hint.values.astype(bool)
+    ref = r2[key + ["human_in", "llm_dep", "tset_in", "llm_says", "same_item"]] \
+        .drop_duplicates(key).rename(columns={"same_item": "pick_hint"})
+    J = B.rename(columns={"same_item": "pick_blind"}).merge(ref, on=key, how="inner")
+    for i in range(1, 9):
+        J[f"c{i}_hint"] = [str(ref_row) for ref_row in
+                           r2.drop_duplicates(key).set_index(key)
+                           .reindex(pd.MultiIndex.from_frame(J[key]))[f"cand_{i}"]
+                           .fillna("").values]
+    hb = J.hb.values.astype(bool)
+    hh = J.human_in.values.astype(bool)
     shown = (J.llm_says.astype(str).str.strip() == "IN").values
+    slots_same = [i for i in range(1, 9)
+                  if (J[f"cand_{i}"].astype(str).values == J[f"c{i}_hint"].values).all()]
+    dis = J[hb != hh]
+    picks = sorted({int(x) for x in list(dis.pick_blind.fillna(0))
+                    + list(dis.pick_hint.fillna(0)) if int(x) > 0})
     res["blind"] = {
         "n_relabeled": int(len(B)), "n_matched": int(len(J)),
+        "n_disagree": int(len(dis)),
+        "slots_identical": len(slots_same),
+        "disagreement_slots": picks,
+        "all_disagreements_in_changed_slots": bool(picks and min(picks) > len(slots_same)),
+        "power_ten_points": 0.35,
         "agreement": float((hb == hh).mean()),
         "hinted_agrees_with_shown": float((hh == shown).mean()),
         "blind_agrees_with_shown": float((hb == shown).mean()),
         "anchoring": float((hh == shown).mean() - (hb == shown).mean()),
-        "llm8": scores(J.llm8_in.values.astype(bool), hb),
+        "llm8": scores(J.llm_dep.values.astype(bool), hb),
         "tokenset": scores(J.tset_in.values.astype(bool), hb),
         "alwaysin": scores(np.ones(len(J), dtype=bool), hb),
     }

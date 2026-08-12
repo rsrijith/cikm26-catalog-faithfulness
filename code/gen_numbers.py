@@ -152,6 +152,15 @@ def main():
         emit("spErrOther", sp["err_other"], src, "{:.3f}")
         emit("spPerr", sp["p_err"], src, "{:.2f}")
         emit("spNClaudeOut", sp["n_claude_human_out"], src, "{:d}")
+        emit("spBiasClaudeAmz", sp["amazon"]["bias_claude"], src, "{:+.3f}")
+        emit("spBiasOtherAmz", sp["amazon"]["bias_other"], src, "{:+.3f}")
+        emit("spNClaudeAmz", sp["amazon"]["n_claude"], src, "{:d}")
+        em = I["error_mass"]
+        emit("errFP", em["fp"], src, "{:d}")
+        emit("errFN", em["fn"], src, "{:d}")
+        emit("errGross", em["fp"] + em["fn"], src, "{:d}")
+        for key, sfx in SUF.items():
+            emit(f"mmx{sfx}", I["minimax"][key], src, "{:.3f}")
 
         b = I["blind"]
         emit("blindN", b["n_relabeled"], src, "{:d}")
@@ -159,6 +168,9 @@ def main():
         emit("blindAgree", b["agreement"], src, "{:.3f}")
         emit("blindAgreePct", b["agreement"] * 100, src)
         emit("blindAnchor", b["anchoring"], src, "{:+.3f}")
+        emit("blindDisagree", b["n_disagree"], src, "{:d}")
+        emit("blindSlotsSame", b["slots_identical"], src, "{:d}")
+        emit("blindPowerTen", b["power_ten_points"], src, "{:.2f}")
         emit("blindFoneLLM", b["llm8"]["f1"], src, "{:.3f}")
         emit("blindBiasLLM", b["llm8"]["bias"], src, "{:+.3f}")
         emit("blindFoneTokenSet", b["tokenset"]["f1"], src, "{:.3f}")
