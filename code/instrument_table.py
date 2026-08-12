@@ -353,6 +353,25 @@ def main():
                   "ood_lo": float(np.percentile(1 - dr, 2.5)),
                   "ood_hi": float(np.percentile(1 - dr, 97.5)),
                   "n_in": int(len(pin)), "n_out": int(len(pout))}
+    # Rogan-Gladen: correct each cell's apparent rate by the instrument's per-catalog
+    # sensitivity and specificity. The paper argues instrument error must be measured,
+    # so it should also show what correcting for it does, including where it fails.
+    rg = {}
+    T = json.load((OUT / "d1_tables.json").open()) if (OUT / "d1_tables.json").exists() else {"ood": {}}
+    for d in DATASETS:
+        c = res["per_catalog"][d]["llm8"]
+        sens = c["tp"] / (c["tp"] + c["fn"]) if c["tp"] + c["fn"] else float("nan")
+        spec = c["tn"] / (c["tn"] + c["fp"]) if c["tn"] + c["fp"] else float("nan")
+        den = sens + spec - 1
+        rg[d] = {"sens": sens, "spec": spec, "n_out_labels": c["tn"] + c["fp"], "cells": {}}
+        for k, v in T["ood"].items():
+            if not k.startswith(d + "/"):
+                continue
+            corrected = 1 - ((1 - v["ood"]) + spec - 1) / den if den > 0 else float("nan")
+            rg[d]["cells"][k.split("/")[1]] = {
+                "raw": v["ood"], "rg": corrected, "in_range": bool(0 <= corrected <= 1)}
+    res["rogan_gladen"] = rg
+
     res["ood"] = ood
     # ood_estimates.json is what the paper's per-catalog interval reads from; write it
     # from the same estimator so there is one implementation, not two.

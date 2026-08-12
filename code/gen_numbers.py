@@ -188,6 +188,18 @@ def main():
         emit("tsetFpAmz", az["tokenset"]["fp"], src, "{:d}")
         emit("humanOutAmz", az["tokenset"]["fp"] + az["tokenset"]["tn"], src, "{:d}")
         emit("recExactPct", I["instruments"]["exact"]["rec"] * 100, src)
+        RG = I["rogan_gladen"]
+        for d in DATASETS:
+            emit(f"rgSens{ROMAN[d]}", RG[d]["sens"], src, "{:.3f}")
+            emit(f"rgSpec{ROMAN[d]}", RG[d]["spec"], src, "{:.3f}")
+            emit(f"rgNOut{ROMAN[d]}", RG[d]["n_out_labels"], src, "{:d}")
+            vals = [c["rg"] for c in RG[d]["cells"].values()]
+            emit(f"rgLo{ROMAN[d]}", min(vals) * 100, src)
+            emit(f"rgHi{ROMAN[d]}", max(vals) * 100, src)
+            emit(f"rgBad{ROMAN[d]}", sum(1 for c in RG[d]["cells"].values()
+                                         if not c["in_range"]), src, "{:d}")
+            for l, c in RG[d]["cells"].items():
+                emit(f"rg{ROMAN[d]}{LROMAN[l]}", c["rg"] * 100, src)
         # the whole selection argument in two numbers: how far F1 moves across the
         # instruments, against how far the quantity they are chosen to estimate moves
         real = [k for k in SUF if k != "llm20"]
@@ -280,6 +292,10 @@ def main():
             emit(f"ablConfPert{k}", v["conf_pert"], "d1_tables.json", "{:.1f}")
             emit(f"ablGrndBase{k}", v["grounded_base"] * 100, "d1_tables.json", "{:.1f}")
             emit(f"ablGrndPert{k}", v["grounded_pert"] * 100, "d1_tables.json", "{:.1f}")
+            emit(f"ablOodBase{k}", (1 - v["grounded_base"]) * 100, "d1_tables.json", "{:.1f}")
+            emit(f"ablOodPert{k}", (1 - v["grounded_pert"]) * 100, "d1_tables.json", "{:.1f}")
+            emit(f"ablOodDrop{k}", (v["grounded_pert"] - v["grounded_base"]) * 100,
+                 "d1_tables.json", "{:.1f}")
     else:
         missing.append("d1_tables.json")
 
